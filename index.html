@@ -43,14 +43,31 @@
     }
 
     .topbar{
-      height:64px;
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      /* height 고정 제거: 내용 많아지면 자동으로 2줄 이상 */
+      height:auto;
+      min-height:64px;
+    
+      display:flex;
+      align-items:flex-start;            /* 위쪽 정렬(줄바꿈 시 안정적) */
+      justify-content:space-between;
+      gap:12px;
+    
       padding:12px 12px;
+    
+      flex-wrap:wrap;                    /* 핵심: 자동 줄바꿈 */
+      row-gap:10px;                      /* 줄 간 간격 */
+    
       background: linear-gradient(to bottom, rgba(11,18,32,.92), rgba(11,18,32,.72));
       backdrop-filter: blur(10px);
       border-bottom:1px solid var(--line);
     }
-    .brand{display:flex; align-items:center; gap:10px; min-width:260px;}
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:240px;
+      flex: 1 1 520px;   /* 왼쪽(제목)이 공간이 부족하면 줄바꿈되게 */
+    }
     .logo{
       width:40px; height:40px; border-radius:14px;
       background: conic-gradient(from 220deg, var(--accent), var(--accent2));
