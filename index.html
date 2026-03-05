@@ -1,0 +1,1921 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>책상달력 4주 + 우선순위(탭/알림) v10 (로그인/실시간)</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --text:#e8eefc;
+      --muted:#9fb0d6;
+      --accent:#5dd6ff;
+      --accent2:#a78bfa;
+      --danger:#ff5d7d;
+      --ok:#58e28a;
+      --holiday:#ffcc66;
+      --sun:#ff6b8a;
+      --sat:#6aa9ff;
+      --line:rgba(255,255,255,.10);
+      --shadow: 0 14px 40px rgba(0,0,0,.35);
+      --radius: 18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+      /* Splitter */
+      --leftW: 70vw;
+      --dividerW: 10px;
+
+      /* Calendar sizing */
+      --cellH: 150px;
+    }
+
+    *{box-sizing:border-box}
+    html, body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(93,214,255,.14), transparent 60%),
+                  radial-gradient(1000px 700px at 80% 20%, rgba(167,139,250,.12), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      overflow:hidden;
+    }
+
+    .topbar{
+      height:64px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 12px;
+      background: linear-gradient(to bottom, rgba(11,18,32,.92), rgba(11,18,32,.72));
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+    .brand{display:flex; align-items:center; gap:10px; min-width:260px;}
+    .logo{
+      width:40px; height:40px; border-radius:14px;
+      background: conic-gradient(from 220deg, var(--accent), var(--accent2));
+      box-shadow: 0 10px 26px rgba(0,0,0,.35);
+    }
+    .brand h1{margin:0; font-size:14px; line-height:1.15; font-weight:850; letter-spacing:.2px;}
+    .brand .sub{font-size:12px; color:var(--muted); margin-top:2px;}
+
+    .actions{display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;}
+    .btn{
+      padding:9px 12px; border-radius:12px; border:1px solid var(--line);
+      background: rgba(17,27,47,.65);
+      color:var(--text);
+      cursor:pointer;
+      font-size:13px;
+      user-select:none;
+    }
+    .btn.primary{border-color: rgba(93,214,255,.55);}
+    .btn.danger{border-color: rgba(255,93,125,.55);}
+    .btn.small{padding:7px 10px; font-size:12px; border-radius:10px;}
+    .btn:active{transform: translateY(1px);}
+
+    .chip{
+      padding:7px 10px; border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(8,12,25,.35);
+      font-size:12px; color:var(--muted);
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    /* Main layout with draggable divider */
+    .main{
+      height: calc(100% - 64px);
+      display:grid;
+      grid-template-columns: minmax(520px, var(--leftW)) var(--dividerW) 1fr;
+      gap:0;
+    }
+    .pane{
+      min-width: 320px;
+      height:100%;
+      overflow:auto;
+      padding:14px;
+    }
+    .divider{
+      position:relative;
+      cursor: col-resize;
+      user-select:none;
+      background: transparent;
+    }
+    .divider::before{
+      content:"";
+      position:absolute;
+      left:50%; top:10px; bottom:10px;
+      width:2px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.10);
+      border-radius: 999px;
+    }
+    .divider::after{
+      content:"";
+      position:absolute;
+      left:50%; top:50%;
+      width:34px; height:74px;
+      transform: translate(-50%,-50%);
+      border-radius: 999px;
+      background: rgba(17,27,47,.25);
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .dividerGrip{
+      position:absolute;
+      left:50%; top:50%;
+      transform: translate(-50%,-50%);
+      width:18px; height:40px;
+      display:flex; flex-direction:column; gap:6px;
+      align-items:center; justify-content:center;
+      z-index:2;
+      pointer-events:none;
+    }
+    .dividerGrip span{
+      display:block;
+      width:18px; height:2px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+    }
+
+    /* Panels */
+    .panel{
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(17,27,47,.88), rgba(15,23,48,.78));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      margin-bottom: 14px;
+    }
+    .panelHeader{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      padding:14px 14px;
+      border-bottom:1px solid var(--line);
+    }
+    .panelTitle{font-weight:850; font-size:14px;}
+    .panelSub{font-size:12px; color:var(--muted); margin-top:3px;}
+    .panelBody{padding:14px;}
+
+    /* Quick add */
+    .quickAdd{
+      display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18,28,51,.92), rgba(18,28,51,.65));
+    }
+    .qaField{flex: 1 1 180px; min-width:160px;}
+    .qaField.small{flex: 0 0 160px;}
+    .qaField label{display:block; font-size:11px; color:var(--muted); margin:0 0 6px;}
+    .input, textarea, select{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(8,12,25,.55);
+      color:var(--text);
+      outline:none;
+      font-size:13px;
+    }
+    textarea{min-height:120px; resize:vertical; font-family:var(--sans);}
+
+    /* Desk calendar */
+    .nav{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .deskTop{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px;
+      background: linear-gradient(180deg, rgba(18,28,51,.92), rgba(18,28,51,.65));
+      border-bottom:1px solid var(--line);
+    }
+    .rings{display:flex; gap:10px; align-items:center;}
+    .ring{
+      width:18px; height:18px;
+      border-radius: 999px;
+      border:2px solid rgba(255,255,255,.22);
+      box-shadow: inset 0 0 0 4px rgba(0,0,0,.15);
+    }
+    .weekdays{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap:8px;
+      margin: 10px 0 8px;
+      padding: 0 2px;
+    }
+    .weekday{
+      text-align:center;
+      font-weight:900;
+      font-size:12px;
+      color: rgba(159,176,214,.95);
+      letter-spacing:.2px;
+      padding:4px 0;
+      border-radius: 10px;
+    }
+    .weekday.sun{color: rgba(255,107,138,.95);}
+    .weekday.sat{color: rgba(106,169,255,.95);}
+
+    .calGrid{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap:8px;
+      grid-auto-rows: var(--cellH);
+    }
+    .dayCell{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(8,12,25,.22);
+      border-radius: 16px;
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      height: var(--cellH);
+    }
+    /* 더 가시적인 오늘 표시: 셀 전체 강조 */
+    .dayCell.today{
+      border-color: rgba(93,214,255,.82);
+      box-shadow: 0 0 0 2px rgba(93,214,255,.28) inset, 0 18px 60px rgba(93,214,255,.14);
+      background: linear-gradient(180deg, rgba(93,214,255,.22), rgba(93,214,255,.06));
+    }
+    .dayCell.today .dayCellHeader{
+      background: linear-gradient(180deg, rgba(93,214,255,.22), rgba(93,214,255,.10));
+    }
+    .dayCell.holiday{
+      border-color: rgba(255,204,102,.55);
+      background: linear-gradient(180deg, rgba(255,204,102,.14), rgba(255,204,102,.05));
+    }
+    .dayCellHeader{
+      padding:10px 10px 8px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .dateWrap{min-width:0;}
+    .dateNum{font-weight:950; font-size:13px;}
+    .dateSub{font-size:11px; color:var(--muted); margin-top:2px;}
+    .holidayName{
+      font-size:11px;
+      color: rgba(255,204,102,.98);
+      margin-top:3px;
+      font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 140px;
+    }
+    .todayMark{
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(93,214,255,.85);
+      background: rgba(93,214,255,.24);
+      font-size:11px;
+      color: rgba(232,238,252,.98);
+      user-select:none;
+      white-space:nowrap;
+      font-weight:950;
+    }
+    .sunBadge, .satBadge{
+      padding:3px 7px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(8,12,25,.35);
+      user-select:none;
+      white-space:nowrap;
+      font-weight:900;
+    }
+    .sunBadge{border-color: rgba(255,107,138,.45); color: rgba(255,107,138,.98);}
+    .satBadge{border-color: rgba(106,169,255,.45); color: rgba(106,169,255,.98);}
+
+    .dayTasks{
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      overflow:hidden; /* 높낮이 튀는 것 방지 */
+    }
+    .calItem{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 8px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(17,27,47,.64);
+      cursor:pointer;
+      min-height: 32px;
+    }
+    .calItem:hover{border-color: rgba(255,255,255,.16);}
+    .dot{width:10px; height:10px; border-radius:999px; flex:0 0 auto;}
+    .calTitle{
+      font-size:12px;
+      font-weight:850;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      flex: 1 1 auto;
+      min-width:0;
+    }
+    .tiny{font-size:12px; color:var(--muted)}
+
+    /* Priority */
+    .prioHeader{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap;}
+    .prioStack{display:flex; flex-direction:column; gap:10px;}
+
+    .tabs{
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+      margin: 0 0 10px;
+    }
+    .tab{
+      padding:7px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(8,12,25,.35);
+      cursor:pointer;
+      user-select:none;
+      font-size:12px;
+      color: rgba(232,238,252,.92);
+    }
+    .tab.active{
+      border-color: rgba(93,214,255,.60);
+      background: rgba(93,214,255,.16);
+      color: rgba(232,238,252,.98);
+      font-weight:900;
+    }
+
+    .prioTile{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(17,27,47,.80);
+      border-radius: 16px;
+      padding:12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      cursor:grab;
+    }
+    .prioTile:active{cursor:grabbing;}
+    .prioTile.dragging{opacity:.35}
+    .prioBar{width:12px; border-radius: 12px; flex:0 0 auto;}
+    .prioMain{flex:1 1 auto; min-width:0;}
+    .prioTitle{font-weight:950; font-size:14px;}
+    .prioMeta{margin-top:6px; font-size:12px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap;}
+    .pill{padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background: rgba(8,12,25,.35);}
+    .pill.alert{border-color: rgba(255,93,125,.50); background: rgba(255,93,125,.14); color: rgba(232,238,252,.98); font-weight:900;}
+    .prioActions{display:flex; gap:6px; align-items:center; flex:0 0 auto;}
+    .prioCheck{
+      width:24px; height:24px; border-radius:8px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(8,12,25,.35);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer;
+      user-select:none;
+      flex:0 0 auto;
+      color: rgba(232,238,252,.95);
+    }
+    .prioCheck:hover{border-color: rgba(88,226,138,.45); color: rgba(88,226,138,.95);}
+    .prioCheck svg{width:16px; height:16px;}
+
+    /* Modal */
+    .modalBackdrop{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:50;
+    }
+    .modal{
+      width: min(780px, calc(100vw - 24px));
+      max-height: min(86vh, 860px);
+      overflow:auto;
+      border:1px solid rgba(255,255,255,.16);
+      background: linear-gradient(180deg, rgba(17,27,47,.95), rgba(15,23,48,.92));
+      border-radius: 18px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.55);
+    }
+    .modalHeader{padding:14px 14px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+    .modalTitle{font-weight:950; font-size:14px;}
+    .modalBody{padding:14px;}
+    .modalFooter{padding:14px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
+    .kbd{
+      font-family: var(--mono);
+      border:1px solid rgba(255,255,255,.14);
+      border-bottom-width: 2px;
+      background: rgba(8,12,25,.35);
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: rgba(232,238,252,.9);
+    }
+
+    /* Toast */
+    .toast{
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      background: rgba(17,27,47,.92);
+      border: 1px solid rgba(255,255,255,.14);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      display:none;
+      max-width: min(700px, calc(100vw - 24px));
+      z-index:60;
+    }
+    .toast.show{display:block;}
+
+    @media (max-width: 980px){
+      body{overflow:auto;}
+      .main{display:block; height:auto;}
+      .divider{display:none;}
+      .pane{height:auto;}
+      .calGrid{grid-auto-rows: 160px;}
+      .dayCell{height: 160px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>책상달력 4주 · 우선순위(탭/알림) v10 (로그인/실시간)</h1>
+        <div class="sub">일요일 시작 · 오늘 주의 일요일부터 4주 표시 · 이 브라우저에 저장(기기별) · 내보내기/가져오기</div>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="chip" id="chipRange">—</span>
+      <span class="chip" id="chipSaved">마지막 저장: —</span>
+      <span class="chip" id="chipHint">기기 바꾸면: 내보내기(JSON) → 가져오기</span>
+      
+      <span class="chip" id="chipAuth">로그인: 오프라인</span>
+      <button class="btn" id="btnCloudSetup" title="Firebase 설정(최초 1회)">클라우드 설정</button>
+      <button class="btn primary" id="btnLogin">로그인</button>
+      <button class="btn" id="btnLogout" style="display:none;">로그아웃</button>
+
+      <button class="btn" id="btnCategories">키워드 관리</button>
+      <button class="btn" id="btnSettings">시간 설정</button>
+      <button class="btn primary" id="btnAdd">+ 할 일 추가</button>
+      <button class="btn" id="btnExport">내보내기</button>
+      <label class="btn" for="fileImport">가져오기</label>
+      <input id="fileImport" type="file" accept="application/json" style="display:none" />
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- LEFT -->
+    <div class="pane">
+      <div class="panel">
+        <div class="quickAdd">
+          <div class="qaField" style="flex: 2 1 260px;">
+            <label>새 할 일 제목</label>
+            <input class="input" id="qaTitle" placeholder="예) 자소서 1차 수정 / 게임 이벤트 일일퀘" />
+          </div>
+          <div class="qaField small">
+            <label>마감일</label>
+            <input class="input" type="date" id="qaDueDate" />
+          </div>
+          <div class="qaField small">
+            <label>키워드</label>
+            <select class="input" id="qaKeyword"></select>
+          </div>
+          <div class="qaField small">
+            <button class="btn primary" id="btnQuickAdd" style="width:100%;">추가</button>
+          </div>
+          <div class="tiny" style="flex:1 1 280px;">
+            • 여기서 빠르게 추가(제목/마감일/키워드).<br/>
+            • <span class="kbd">알림/필수/메모</span>는 타일 클릭 후 상세에서 설정.<br/>
+            • 달력 날짜 칸 더블클릭 → 그 날짜 마감으로 추가.
+          </div>
+        </div>
+
+        <div class="deskTop">
+          <div class="rings" aria-hidden="true">
+            <div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="ring"></div>
+          </div>
+          <div class="nav">
+            <button class="btn small" id="btnPrev">← 이전</button>
+            <button class="btn small" id="btnToday">오늘</button>
+            <button class="btn small" id="btnNext">다음 →</button>
+          </div>
+        </div>
+
+        <div class="panelBody">
+          <div class="weekdays" id="weekdays"></div>
+          <div class="calGrid" id="calGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIVIDER -->
+    <div class="divider" id="divider" title="마우스로 드래그해서 좌/우 폭 조절 (기본 7:3)">
+      <div class="dividerGrip" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="pane">
+      <div class="panel">
+        <div class="panelHeader">
+          <div>
+            <div class="panelTitle">지금 해야 할 것 (우선순위)</div>
+            <div class="panelSub">
+              탭 2개: <span class="kbd">키워드 우선</span> / <span class="kbd">시간순</span>.
+              알림이 “활성”된 할 일은 완료 전까지 항상 맨 위로 올라옵니다.
+            </div>
+          </div>
+          <div class="prioHeader">
+            <button class="btn small" id="btnEdit">수정</button>
+            <button class="btn small primary" id="btnSaveOrder" disabled>저장</button>
+          </div>
+        </div>
+        <div class="panelBody">
+          <div class="tabs" style="margin-bottom:10px;">
+            <div class="tab active" id="tabKeyword">키워드 우선</div>
+            <div class="tab" id="tabTime">시간순</div>
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+            <div style="flex:1 1 220px; min-width:220px;">
+              <select id="filterKeyword" class="input">
+                <option value="all">전체 키워드</option>
+              </select>
+            </div>
+            <button class="btn" id="btnClearOverride" title="수동 우선순위(드래그 저장)를 초기화">수동순서 초기화</button>
+          </div>
+
+          <div class="prioStack" id="prioStack"></div>
+          <div class="tiny" style="margin-top:10px;">타일 클릭 → 상세/메모/마감/키워드/알림 수정. 완료는 타일 오른쪽 ✓ 버튼.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panelHeader">
+          <div>
+            <div class="panelTitle">완료 기록</div>
+            <div class="panelSub">완료한 항목은 여기로 이동(생성/완료일 기록). 필요하면 복원 가능.</div>
+          </div>
+          <button class="btn small" id="btnToggleDone">접기/펴기</button>
+          <button class="btn small" id="btnClearDone">완료 전체삭제</button>
+        </div>
+        <div class="panelBody" id="doneBody">
+          <div id="doneList" class="prioStack"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task modal -->
+  <div class="modalBackdrop" id="taskModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" id="taskModalTitle">할 일</div>
+          <div class="panelSub" id="taskModalSub">—</div>
+        </div>
+        <button class="btn small" id="btnCloseTask">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+          <div style="flex:1 1 260px; min-width:240px;">
+            <input class="input" id="tTitle" placeholder="제목(짧게)" />
+          </div>
+          <div style="min-width:210px; flex:0 0 210px;">
+            <select id="tKeyword" class="input"></select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;">
+          <div style="min-width:220px; flex:1 1 220px;">
+            <label class="tiny">마감일</label>
+            <input type="date" class="input" id="tDueDate" />
+          </div>
+          <div style="min-width:220px; flex:1 1 220px;">
+            <label class="tiny">마감시간(옵션)</label>
+            <input type="time" class="input" id="tDueTime" />
+          </div>
+          <div style="min-width:220px; flex:1 1 220px;">
+            <label class="tiny">강제 우선(옵션)</label>
+            <select id="tMust" class="input">
+              <option value="0">기본(키워드/마감)</option>
+              <option value="1">최상위(무조건 해야 함)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;">
+          <div style="min-width:220px; flex:1 1 220px;">
+            <label class="tiny">알림 유무</label>
+            <select id="tAlertOn" class="input">
+              <option value="0">끔</option>
+              <option value="1">켬</option>
+            </select>
+          </div>
+          <div style="min-width:220px; flex:1 1 220px;">
+            <label class="tiny">알림 시작(며칠 전부터)</label>
+            <input type="number" class="input" id="tAlertLead" min="0" max="60" step="1" placeholder="예) 3 (3일 전부터)" />
+          </div>
+          <div class="tiny" style="flex: 2 1 260px;">
+            예: 건강검진(3주 뒤) → 알림 3일 전부터 켜면, 그 시점부터 완료 전까지 오른쪽 목록 최상단에 핀.
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="tiny">메모</label>
+          <textarea id="tNotes" placeholder="메모/비고"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn" id="btnMarkDone">완료 처리</button>
+          <button class="btn" id="btnRestore" style="display:none">복원(미완료로)</button>
+          <span class="tiny" id="tDates">—</span>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn danger" id="btnDelete">삭제</button>
+        <button class="btn" id="btnCancel">취소</button>
+        <button class="btn primary" id="btnSave">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category modal -->
+  <div class="modalBackdrop" id="catModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle">키워드(카테고리) 관리</div>
+          <div class="panelSub">키워드 순서가 기본 우선순위를 결정합니다(취업→공부→게임…). 드래그로 순서 변경 가능.</div>
+        </div>
+        <button class="btn small" id="btnCloseCat">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+          <div style="flex:1 1 220px;"><input class="input" id="kName" placeholder="새 키워드 이름 (예: 기타)" /></div>
+          <div style="min-width:180px"><input class="input" id="kColor" type="color" value="#5dd6ff" /></div>
+          <button class="btn primary" id="btnAddKey">추가</button>
+        </div>
+        <div class="tiny" style="margin-bottom:8px;">목록을 드래그해서 순서를 바꾸면, 기본 우선순위 순서가 바뀝니다.</div>
+        <div id="keyList" class="prioStack"></div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" id="btnCatDone">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="modalBackdrop" id="setModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle">시간/레이아웃 설정</div>
+          <div class="panelSub">시간 미입력 마감은 ‘해당 날짜 + 컷오프’까지로 처리됩니다. (예: 컷오프 02:00이면 하루가 새벽 2시에 끝남)</div>
+        </div>
+        <button class="btn small" id="btnCloseSet">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:10px;">
+          <div style="flex:1 1 240px;">
+            <label class="tiny">하루 컷오프</label>
+            <input type="time" class="input" id="cutoff" />
+          </div>
+          <div style="flex:1 1 240px;">
+            <label class="tiny">좌/우 분할폭(저장값)</label>
+            <input class="input" id="splitInfo" readonly />
+          </div>
+          <div style="flex:1 1 240px;">
+            <label class="tiny">달력 셀 높이(고정)</label>
+            <input type="number" class="input" id="cellH" min="120" max="240" step="5" />
+          </div>
+        </div>
+        <div class="tiny">화면 크기를 줄여도 달력 “크기감”을 유지하려고 셀 높이를 기본 고정합니다(높낮이 튐 방지).</div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" id="btnSetCancel">취소</button>
+        <button class="btn primary" id="btnSetSave">저장</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Cloud setup modal (Firebase) -->
+  <div class="modalBackdrop" id="cloudModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle">클라우드(실시간 동기화) 설정</div>
+          <div class="panelSub">Firebase(구글 로그인 + Firestore)로 기기 간 실시간 동기화합니다. (최초 1회)</div>
+        </div>
+        <button class="btn small" id="btnCloseCloud">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="tiny" style="margin-bottom:10px;">
+          1) Firebase 콘솔에서 프로젝트 생성 → Authentication(구글) 활성화 → Firestore 생성<br/>
+          2) 프로젝트 설정의 <span class="kbd">firebaseConfig</span>를 아래에 붙여넣기<br/>
+          3) 저장 후 새로고침(F5) → 로그인하면 PC/태블릿/모바일이 동일 데이터로 실시간 동기화됩니다.
+        </div>
+        <label class="tiny">firebaseConfig JSON</label>
+        <textarea id="firebaseConfigBox" class="input" style="min-height:170px; font-family: var(--mono);" placeholder='예) {"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-top:10px;">
+          <div style="flex:1 1 240px; min-width:220px;">
+            <label class="tiny">동기화 문서 경로(고급)</label>
+            <input class="input" id="cloudPath" placeholder="planner/main (기본)" />
+          </div>
+          <button class="btn primary" id="btnSaveCloudCfg">저장</button>
+        </div>
+        <div class="tiny" style="margin-top:10px;">
+          • GitHub Pages(https)에서 열어야 로그인/동기화가 정상 동작합니다.<br/>
+          • Firebase Authentication의 Authorized domains에 <span class="kbd">kannad031.github.io</span> 같은 도메인을 추가해야 합니다.
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" id="btnCloudCancel">취소</button>
+        <button class="btn primary" id="btnCloudOk">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login modal -->
+  <div class="modalBackdrop" id="loginModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle">로그인</div>
+          <div class="panelSub">구글 로그인으로 동기화합니다.</div>
+        </div>
+        <button class="btn small" id="btnCloseLogin">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="tiny" style="margin-bottom:10px;">
+          • 같은 계정으로 로그인한 기기끼리 실시간으로 동기화됩니다.<br/>
+          • 팝업이 막히면 브라우저에서 팝업 허용 후 다시 시도하세요.
+        </div>
+        <button class="btn primary" id="btnGoogleLogin" style="width:100%; padding:12px 14px; font-weight:900;">Google로 로그인</button>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" id="btnLoginCancel">닫기</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module">
+// Firebase SDK (ES Modules)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  (() => {
+    const STORAGE_KEY_V4 = 'deskPlanner.v4';
+    const CLOUD_CFG_KEY = 'deskPlanner.cloudCfg.v10'; // { firebaseConfig, cloudPath }
+
+    let firebaseApp = null;
+    let auth = null;
+    let db = null;
+    let user = null;
+    let cloudReady = false;
+    let cloudUnsub = null;
+    let cloudPath = "planner/main";
+    let lastCloudUpdatedAt = 0;
+
+    const loadCloudCfg = () => {
+      try{
+        const raw = localStorage.getItem(CLOUD_CFG_KEY);
+        if(!raw) return null;
+        const cfg = JSON.parse(raw);
+        if(!cfg?.firebaseConfig?.projectId) return null;
+        if(cfg.cloudPath) cloudPath = String(cfg.cloudPath);
+        return cfg;
+      }catch(_){ return null; }
+    };
+
+    const saveCloudCfg = (cfg) => {
+      localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cfg));
+      if(cfg.cloudPath) cloudPath = String(cfg.cloudPath);
+    };
+
+    const initFirebaseIfPossible = () => {
+      const cfg = loadCloudCfg();
+      if(!cfg) return false;
+      try{
+        firebaseApp = initializeApp(cfg.firebaseConfig);
+        auth = getAuth(firebaseApp);
+        db = getFirestore(firebaseApp);
+        cloudReady = true;
+        if(cfg.cloudPath) cloudPath = String(cfg.cloudPath);
+        return true;
+      }catch(err){
+        console.error(err);
+        cloudReady = false;
+        return false;
+      }
+    };
+
+    const cloudDocRef = () => {
+      if(!db || !user) return null;
+      return doc(db, "users", user.uid, ...cloudPath.split("/"));
+    };
+
+    const LEGACY_KEYS = [
+      'deskPlanner.v3',
+      'deskPlanner.v2', 'deskPlanner.v2_fixed', 'deskPlanner.v2.fixed', 'deskPlanner.v2Fixed'
+    ];
+
+    const $ = (s) => document.querySelector(s);
+
+    const toastEl = $('#toast');
+    let toastTimer = null;
+    const toast = (msg) => {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1700);
+    };
+
+    const pad2 = (n) => String(n).padStart(2,'0');
+    const toISODate = (d) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    const startOfWeekSun = (d) => {
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      x.setDate(x.getDate() - x.getDay());
+      return x;
+    };
+    const addDays = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate()+n); return x; };
+
+    const escapeHtml = (s) => String(s)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+
+    const HOLIDAYS = {
+      "2025-01-01": "신정",
+      "2025-01-27": "임시공휴일",
+      "2025-01-28": "설날 연휴",
+      "2025-01-29": "설날",
+      "2025-01-30": "설날 연휴",
+      "2025-03-01": "삼일절",
+      "2025-03-03": "대체공휴일(삼일절)",
+      "2025-05-01": "근로자의날",
+      "2025-05-05": "어린이날/부처님오신날",
+      "2025-05-06": "대체공휴일",
+      "2025-06-03": "대통령선거일",
+      "2025-06-06": "현충일",
+      "2025-08-15": "광복절",
+      "2025-10-03": "개천절",
+      "2025-10-05": "추석 연휴",
+      "2025-10-06": "추석",
+      "2025-10-07": "추석 연휴",
+      "2025-10-08": "대체공휴일",
+      "2025-10-09": "한글날",
+      "2025-12-25": "성탄절",
+      "2026-01-01": "신정",
+      "2026-02-16": "설날 연휴",
+      "2026-02-17": "설날",
+      "2026-02-18": "설날 연휴",
+      "2026-03-02": "대체공휴일(삼일절)",
+      "2026-05-05": "어린이날",
+      "2026-05-25": "대체공휴일(부처님오신날)",
+      "2026-06-03": "선거일",
+      "2026-08-17": "대체공휴일(광복절)",
+      "2026-09-24": "추석 연휴",
+      "2026-09-25": "추석",
+      "2026-09-26": "추석 연휴",
+      "2026-10-05": "대체공휴일(개천절)",
+      "2026-10-09": "한글날",
+      "2026-12-25": "성탄절"
+    };
+
+    const defaultState = () => ({
+      meta: { lastSavedAt: null },
+      ui: {
+        anchorOffsetWeeks: 0,
+        splitLeftW: null,
+        doneCollapsed: false,
+        prioTab: 'keyword',
+      },
+      settings: {
+        cutoff: '02:00',
+        cellH: 150
+      },
+      keywords: [
+        { id:'k_job', name:'취업', color:'#5dd6ff' },
+        { id:'k_study', name:'공부', color:'#a78bfa' },
+        { id:'k_game', name:'게임', color:'#58e28a' },
+        { id:'k_etc', name:'기타', color:'#9fb0d6' },
+      ],
+      tasks: {},
+      orderOverride: [],
+    });
+
+    const normalizeState = (s) => {
+      const base = defaultState();
+      s ||= base;
+      s.meta ||= base.meta;
+      s.ui ||= base.ui;
+      s.settings ||= base.settings;
+      s.keywords ||= base.keywords;
+      s.tasks ||= {};
+      s.orderOverride ||= [];
+      if(!s.ui.prioTab) s.ui.prioTab = 'keyword';
+      if(!s.settings.cellH) s.settings.cellH = 150;
+
+      for(const t of Object.values(s.tasks)){
+        if(t.must === undefined) t.must = 0;
+        if(t.notes === undefined) t.notes = '';
+        if(t.dueTime === undefined) t.dueTime = null;
+        if(t.alertOn === undefined) t.alertOn = 0;
+        if(t.alertLeadDays === undefined) t.alertLeadDays = 0;
+      }
+      return s;
+    };
+
+    const tryLoadLegacy = () => {
+      for(const k of LEGACY_KEYS){
+        try{
+          const raw = localStorage.getItem(k);
+          if(raw){
+            const s = JSON.parse(raw);
+            if(s && s.tasks && s.keywords) return normalizeState(s);
+          }
+        }catch(_){}
+      }
+      return null;
+    };
+
+    const loadState = () => {
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY_V4);
+        if(raw){
+          const s = JSON.parse(raw);
+          if(s && s.tasks) return normalizeState(s);
+        }
+      }catch(_){}
+      const legacy = tryLoadLegacy();
+      if(legacy){
+        legacy.meta.lastSavedAt = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(legacy));
+        return legacy;
+      }
+      return defaultState();
+    };
+
+    let state = loadState();
+
+    const setLastSavedChip = () => {
+      const el = $('#chipSaved');
+      const ts = state.meta?.lastSavedAt;
+      if(!ts){ el.textContent = '마지막 저장: —'; return; }
+      const d = new Date(ts);
+      el.textContent = `마지막 저장: ${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    };
+
+    const saveState = (doRender=true) => {
+      state.meta ||= {};
+      state.meta.lastSavedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(state));
+      setLastSavedChip();
+      if(doRender) render();
+
+      // Cloud sync (if logged in)
+      if(cloudReady && user){
+        const ref = cloudDocRef();
+        if(ref){
+          const updatedAt = Date.now();
+          setDoc(ref, { state, updatedAt }, { merge: true })
+            .then(() => { lastCloudUpdatedAt = Math.max(lastCloudUpdatedAt, updatedAt); })
+            .catch((err) => { console.warn('cloud save failed', err); });
+        }
+      }
+    };
+
+    // Splitter: default 7:3
+    const applySplitW = (w) => {
+      const minLeft = 520;
+      const maxLeft = Math.max(minLeft, window.innerWidth - 360);
+      const clamped = Math.min(maxLeft, Math.max(minLeft, w));
+      document.documentElement.style.setProperty('--leftW', clamped + 'px');
+      state.ui.splitLeftW = clamped;
+      const si = $('#splitInfo');
+      if(si) si.value = clamped + 'px';
+    };
+
+    const initSplitter = () => {
+      if(state.ui.splitLeftW) applySplitW(state.ui.splitLeftW);
+      else applySplitW(Math.floor(window.innerWidth * 0.70));
+
+      const divider = $('#divider');
+      let dragging = false;
+
+      const onMove = (clientX) => {
+        applySplitW(Math.floor(clientX));
+        saveState(false);
+      };
+
+      divider.addEventListener('mousedown', (e) => {
+        dragging = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        onMove(e.clientX);
+      });
+      window.addEventListener('mousemove', (e) => { if(dragging) onMove(e.clientX); });
+      window.addEventListener('mouseup', () => {
+        if(!dragging) return;
+        dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+
+      divider.addEventListener('touchstart', (e) => { dragging = true; onMove(e.touches[0].clientX); }, {passive:true});
+      window.addEventListener('touchmove', (e) => { if(dragging) onMove(e.touches[0].clientX); }, {passive:true});
+      window.addEventListener('touchend', () => { dragging = false; }, {passive:true});
+
+      window.addEventListener('resize', () => {
+        if(state.ui.splitLeftW) applySplitW(state.ui.splitLeftW);
+        else applySplitW(Math.floor(window.innerWidth * 0.70));
+      });
+    };
+
+    const applyCellH = () => {
+      const h = Number(state.settings.cellH || 150);
+      document.documentElement.style.setProperty('--cellH', h + 'px');
+      const input = $('#cellH');
+      if(input) input.value = String(h);
+    };
+
+    // Keywords
+    const kwById = (id) => state.keywords.find(k => k.id === id);
+    const kwIndex = (id) => {
+      const idx = state.keywords.findIndex(k => k.id === id);
+      return idx >= 0 ? idx : 999;
+    };
+
+    const ensureKeywordSelects = () => {
+      const opts = state.keywords.map(k => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}</option>`).join('');
+      $('#tKeyword').innerHTML = opts;
+      $('#qaKeyword').innerHTML = opts;
+
+      const filter = $('#filterKeyword');
+      const current = filter.value || 'all';
+      filter.innerHTML = `<option value="all">전체 키워드</option>` + state.keywords.map(k => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}</option>`).join('');
+      filter.value = current;
+    };
+
+    const uid = () => 't_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
+
+    const effectiveDueTimestamp = (task) => {
+      const cutoff = state.settings.cutoff || '02:00';
+      const time = task.dueTime ? task.dueTime : cutoff;
+      const [y,m,d] = task.dueDate.split('-').map(Number);
+      const [hh,mm] = time.split(':').map(Number);
+
+      let base = new Date(y, m-1, d, hh, mm, 0, 0);
+      if(!task.dueTime && hh < 6){
+        base = new Date(y, m-1, d+1, hh, mm, 0, 0);
+      }
+      return base.getTime();
+    };
+
+    const alertStartTimestamp = (task) => {
+      const lead = Number(task.alertLeadDays || 0);
+      const dueTs = effectiveDueTimestamp(task);
+      return dueTs - (lead * 24 * 3600 * 1000);
+    };
+
+    const isAlertActive = (task) => {
+      if(task.doneAt) return false;
+      if(!task.alertOn) return false;
+      return Date.now() >= alertStartTimestamp(task);
+    };
+
+    const dDayLabel = (task) => {
+      const diff = effectiveDueTimestamp(task) - Date.now();
+      const days = Math.floor(diff / (24*3600*1000));
+      if(days >= 0) return `D-${days}`;
+      return `D+${Math.abs(days)}`;
+    };
+
+    const iconCheck = () => (
+      '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>'
+    );
+
+    const renderCalendar = () => {
+      const weekdays = ['일','월','화','수','목','금','토'];
+      $('#weekdays').innerHTML = weekdays.map((w,i) => {
+        const cls = i===0 ? 'weekday sun' : (i===6 ? 'weekday sat' : 'weekday');
+        return `<div class="${cls}">${w}</div>`;
+      }).join('');
+
+      const today = new Date();
+      const todayISO = toISODate(today);
+
+      const anchor = startOfWeekSun(today);
+      const start = addDays(anchor, state.ui.anchorOffsetWeeks * 7);
+      const dates = Array.from({length:28}, (_,i) => addDays(start, i));
+      $('#chipRange').textContent = `${toISODate(dates[0])} ~ ${toISODate(dates[27])}`;
+
+      const byDate = {};
+      for(const t of Object.values(state.tasks)){
+        if(t.doneAt) continue;
+        byDate[t.dueDate] ||= [];
+        byDate[t.dueDate].push(t);
+      }
+
+      for(const k of Object.keys(byDate)){
+        byDate[k].sort((a,b) => {
+          const aa = isAlertActive(a) ? 1 : 0;
+          const bb = isAlertActive(b) ? 1 : 0;
+          if(bb !== aa) return bb - aa;
+          if((b.must||0) !== (a.must||0)) return (b.must||0)-(a.must||0);
+          const dt = effectiveDueTimestamp(a) - effectiveDueTimestamp(b);
+          if(dt !== 0) return dt;
+          return kwIndex(a.keywordId) - kwIndex(b.keywordId);
+        });
+      }
+
+      const grid = $('#calGrid');
+      grid.innerHTML = '';
+
+      dates.forEach(d => {
+        const iso = toISODate(d);
+        const isToday = iso === todayISO;
+        const day = d.getDay();
+        const isSun = day === 0;
+        const isSat = day === 6;
+
+        const holidayName = HOLIDAYS[iso] || null;
+        const isHoliday = !!holidayName;
+
+        const label = `${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`;
+        const items = (byDate[iso] || []);
+        const tasks = items.slice(0, 3);
+        const more = items.length - tasks.length;
+
+        const cell = document.createElement('div');
+        cell.className = 'dayCell' + (isToday ? ' today' : '') + (isHoliday ? ' holiday' : '');
+        cell.innerHTML = `
+          <div class="dayCellHeader">
+            <div class="dateWrap">
+              <div class="dateNum">${label}</div>
+              <div class="dateSub">${iso}</div>
+              ${holidayName ? `<div class="holidayName" title="${escapeHtml(holidayName)}">${escapeHtml(holidayName)}</div>` : ``}
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              ${isToday ? `<div class="todayMark">오늘</div>` : ``}
+              ${(!isToday && isSun) ? `<div class="sunBadge">일</div>` : ``}
+              ${(!isToday && isSat) ? `<div class="satBadge">토</div>` : ``}
+            </div>
+          </div>
+          <div class="dayTasks" data-date="${iso}">
+            ${tasks.map(t => {
+              const kw = kwById(t.keywordId) || {color:'#777'};
+              const alert = isAlertActive(t);
+              return `
+                <div class="calItem" data-id="${escapeHtml(t.id)}" title="${escapeHtml(t.title)}">
+                  <div class="dot" style="background:${escapeHtml(kw.color)}"></div>
+                  <div class="calTitle">${escapeHtml(t.title)}</div>
+                  ${alert ? `<span class="pill alert" style="margin-left:auto;">알림</span>` : ``}
+                </div>
+              `;
+            }).join('')}
+            ${more>0 ? `<div class="tiny">+ ${more}개 더…</div>` : ``}
+          </div>
+        `;
+        grid.appendChild(cell);
+      });
+
+      grid.querySelectorAll('.calItem').forEach(el => {
+        el.addEventListener('click', () => openTask(el.dataset.id));
+      });
+
+      grid.querySelectorAll('.dayTasks').forEach(area => {
+        area.addEventListener('dblclick', () => openTask(null, {prefillDate: area.dataset.date}));
+      });
+
+      const qaDue = $('#qaDueDate');
+      if(!qaDue.value) qaDue.value = todayISO;
+    };
+
+    let editMode = false;
+    let draggingId = null;
+
+    const getActiveTasks = () => {
+      let tasks = Object.values(state.tasks).filter(t => !t.doneAt);
+
+      const filter = $('#filterKeyword').value || 'all';
+      if(filter !== 'all') tasks = tasks.filter(t => t.keywordId === filter);
+
+      const tab = state.ui.prioTab || 'keyword';
+
+      const baseSort = (a,b) => {
+        const aa = isAlertActive(a) ? 1 : 0;
+        const bb = isAlertActive(b) ? 1 : 0;
+        if(bb !== aa) return bb - aa;
+
+        if((b.must||0) !== (a.must||0)) return (b.must||0)-(a.must||0);
+        return 0;
+      };
+
+      tasks.sort((a,b) => {
+        const bs = baseSort(a,b);
+        if(bs !== 0) return bs;
+
+        if(tab === 'time'){
+          return effectiveDueTimestamp(a) - effectiveDueTimestamp(b);
+        }
+        const k = kwIndex(a.keywordId) - kwIndex(b.keywordId);
+        if(k !== 0) return k;
+        return effectiveDueTimestamp(a) - effectiveDueTimestamp(b);
+      });
+
+      const override = (state.orderOverride || []).filter(id => state.tasks[id] && !state.tasks[id].doneAt);
+      if(override.length === 0 || filter !== 'all' || tab !== 'keyword') return tasks;
+
+      const overrideSet = new Set(override);
+      const overrideTasks = override.map(id => state.tasks[id]).filter(Boolean);
+
+      const alertPinned = tasks.filter(t => isAlertActive(t));
+      const alertSet = new Set(alertPinned.map(t=>t.id));
+
+      const topOverride = overrideTasks.filter(t => !alertSet.has(t.id));
+      const rest = tasks.filter(t => !overrideSet.has(t.id) && !alertSet.has(t.id));
+
+      return [...alertPinned, ...topOverride, ...rest];
+    };
+
+    const prioTileHtml = (t, done=false) => {
+      const kw = kwById(t.keywordId) || {name:'(없음)', color:'#777777'};
+      const due = `${t.dueDate}${t.dueTime ? ' ' + t.dueTime : ''}`;
+      const alert = isAlertActive(t);
+      const alertPill = alert ? `<span class="pill alert">알림 활성</span>` : (t.alertOn ? `<span class="pill">알림: ${Number(t.alertLeadDays||0)}일 전</span>` : '');
+      return `
+        <div class="prioTile" data-id="${escapeHtml(t.id)}" draggable="${editMode && !done ? 'true':'false'}">
+          <div class="prioBar" style="background:${escapeHtml(kw.color)}"></div>
+          <div class="prioMain">
+            <div class="prioTitle">${escapeHtml(t.title)}</div>
+            <div class="prioMeta">
+              <span class="pill">${escapeHtml(kw.name)}</span>
+              ${!done ? `<span class="pill">${escapeHtml(dDayLabel(t))}</span>` : ''}
+              <span class="pill">${escapeHtml(due)}</span>
+              ${t.must ? `<span class="pill" style="border-color:rgba(255,93,125,.45)">필수</span>` : ''}
+              ${alertPill}
+              ${done ? `<span class="pill" style="border-color:rgba(88,226,138,.45)">완료</span>` : ``}
+            </div>
+          </div>
+          ${!done ? `<div class="prioActions">
+            <div class="prioCheck" title="완료" data-act="done">${iconCheck()}</div>
+          </div>` : ''}
+        </div>
+      `;
+    };
+
+    const bindPrioDrag = (container) => {
+      container.querySelectorAll('.prioTile').forEach(el => {
+        if(el.getAttribute('draggable') !== 'true') return;
+
+        el.addEventListener('dragstart', (e) => {
+          draggingId = el.dataset.id;
+          el.classList.add('dragging');
+          e.dataTransfer.setData('text/taskId', draggingId);
+          e.dataTransfer.effectAllowed = 'move';
+        });
+
+        el.addEventListener('dragend', () => {
+          el.classList.remove('dragging');
+          draggingId = null;
+        });
+
+        el.addEventListener('dragover', (e) => e.preventDefault());
+
+        el.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const from = e.dataTransfer.getData('text/taskId') || draggingId;
+          const to = el.dataset.id;
+          if(!from || !to || from === to) return;
+
+          const ids = Array.from(container.querySelectorAll('.prioTile')).map(x => x.dataset.id);
+          const filtered = ids.filter(id => id !== from);
+          const idx = filtered.indexOf(to);
+          filtered.splice(Math.max(0, idx), 0, from);
+
+          state.orderOverride = filtered;
+          renderPriority();
+        });
+      });
+    };
+
+    const setTabUI = () => {
+      const tab = state.ui.prioTab || 'keyword';
+      $('#tabKeyword').classList.toggle('active', tab === 'keyword');
+      $('#tabTime').classList.toggle('active', tab === 'time');
+
+      if(tab === 'time'){
+        $('#btnEdit').disabled = true;
+        $('#btnSaveOrder').disabled = true;
+      }else{
+        $('#btnEdit').disabled = false;
+        $('#btnSaveOrder').disabled = !editMode;
+      }
+    };
+
+    const renderPriority = () => {
+      ensureKeywordSelects();
+      setTabUI();
+
+      const stack = $('#prioStack');
+      const tasks = getActiveTasks();
+      stack.innerHTML = tasks.length ? tasks.map(t => prioTileHtml(t, false)).join('') : `<div class="tiny">할 일이 없습니다. (+ 할 일 추가)</div>`;
+
+      stack.querySelectorAll('.prioTile').forEach(el => {
+        el.addEventListener('click', (e) => {
+          const act = e.target.closest('[data-act]');
+          if(act && act.dataset.act === 'done'){
+            e.stopPropagation();
+            markDoneById(el.dataset.id);
+            return;
+          }
+          if(el.classList.contains('dragging')) return;
+          openTask(el.dataset.id);
+        });
+      });
+
+      bindPrioDrag(stack);
+
+      const doneList = $('#doneList');
+      const done = Object.values(state.tasks)
+        .filter(t => !!t.doneAt)
+        .sort((a,b) => (b.doneAt||'').localeCompare(a.doneAt||''))
+        .slice(0, 50);
+
+      doneList.innerHTML = done.length ? done.map(t => prioTileHtml(t, true)).join('') : `<div class="tiny">아직 완료 기록이 없습니다.</div>`;
+      doneList.querySelectorAll('.prioTile').forEach(el => el.addEventListener('click', () => openTask(el.dataset.id)));
+
+      $('#doneBody').style.display = state.ui.doneCollapsed ? 'none' : 'block';
+
+      $('#btnSaveOrder').disabled = !(editMode && (state.ui.prioTab === 'keyword'));
+      $('#btnEdit').textContent = editMode ? '수정중' : '수정';
+    };
+
+    const show = (el) => { el.style.display='flex'; };
+    const hide = (el) => { el.style.display='none'; };
+
+    const taskModal = $('#taskModal');
+    const catModal = $('#catModal');
+    const setModal = $('#setModal');
+
+    const cloudModal = $('#cloudModal');
+    const loginModal = $('#loginModal');
+
+    let activeTaskId = null;
+
+    const openTask = (id=null, {prefillDate=null} = {}) => {
+      activeTaskId = id;
+      const isNew = !id;
+      const t = id ? state.tasks[id] : null;
+
+      $('#taskModalTitle').textContent = isNew ? '할 일 추가' : '할 일 수정';
+      $('#taskModalSub').textContent = isNew ? '마감일을 기준으로 달력(4주)에 표시됩니다.' : `ID: ${id}`;
+
+      ensureKeywordSelects();
+
+      const todayISO = toISODate(new Date());
+      $('#tTitle').value = t?.title || '';
+      $('#tKeyword').value = t?.keywordId || state.keywords[0]?.id;
+      $('#tDueDate').value = t?.dueDate || prefillDate || todayISO;
+      $('#tDueTime').value = t?.dueTime || '';
+      $('#tNotes').value = t?.notes || '';
+      $('#tMust').value = String(t?.must || 0);
+
+      $('#tAlertOn').value = String(t?.alertOn || 0);
+      $('#tAlertLead').value = String(t?.alertLeadDays ?? 0);
+
+      const created = t?.createdAt ? t.createdAt.slice(0,10) : '';
+      const doneAt = t?.doneAt ? t.doneAt.slice(0,10) : '';
+      $('#tDates').textContent = t ? `생성 ${created}${doneAt ? ' · 완료 '+doneAt : ''}` : '—';
+
+      $('#btnRestore').style.display = (t && t.doneAt) ? 'inline-block' : 'none';
+      $('#btnMarkDone').style.display = (t && t.doneAt) ? 'none' : 'inline-block';
+
+      show(taskModal);
+    };
+
+    const closeTask = () => { hide(taskModal); activeTaskId = null; };
+
+    const upsertTask = () => {
+      const title = $('#tTitle').value.trim();
+      if(!title) return alert('제목을 입력하세요.');
+      const keywordId = $('#tKeyword').value;
+      const dueDate = $('#tDueDate').value;
+      if(!dueDate) return alert('마감일을 선택하세요.');
+      const dueTime = $('#tDueTime').value || null;
+      const notes = $('#tNotes').value;
+      const must = Number($('#tMust').value || 0);
+
+      const alertOn = Number($('#tAlertOn').value || 0);
+      const lead = Number($('#tAlertLead').value || 0);
+      if(lead < 0 || lead > 60) return alert('알림 시작일(며칠 전)은 0~60 범위로 입력');
+
+      if(!activeTaskId){
+        const id = uid();
+        state.tasks[id] = {
+          id, title, keywordId, dueDate, dueTime, notes, must,
+          alertOn: alertOn ? 1 : 0,
+          alertLeadDays: lead,
+          createdAt: new Date().toISOString(),
+          doneAt: null,
+        };
+        toast('추가됨');
+      }else{
+        const t = state.tasks[activeTaskId];
+        if(!t) return;
+        t.title = title;
+        t.keywordId = keywordId;
+        t.dueDate = dueDate;
+        t.dueTime = dueTime;
+        t.notes = notes;
+        t.must = must;
+        t.alertOn = alertOn ? 1 : 0;
+        t.alertLeadDays = lead;
+        toast('저장됨');
+      }
+
+      saveState();
+      closeTask();
+    };
+
+    const deleteTask = () => {
+      if(!activeTaskId) return;
+      if(!confirm('이 할 일을 삭제할까요?')) return;
+      delete state.tasks[activeTaskId];
+      state.orderOverride = (state.orderOverride || []).filter(x => x !== activeTaskId);
+      toast('삭제됨');
+      saveState();
+      closeTask();
+    };
+
+    const markDoneById = (id) => {
+      const t = state.tasks[id];
+      if(!t || t.doneAt) return;
+      t.doneAt = new Date().toISOString();
+      state.orderOverride = (state.orderOverride || []).filter(x => x !== id);
+      toast('완료 처리');
+      saveState();
+    };
+
+    const markDone = () => {
+      if(!activeTaskId) return;
+      markDoneById(activeTaskId);
+      closeTask();
+    };
+
+    const restoreTask = () => {
+      if(!activeTaskId) return;
+      const t = state.tasks[activeTaskId];
+      if(!t) return;
+      t.doneAt = null;
+      toast('복원됨');
+      saveState();
+      closeTask();
+    };
+
+    const openCat = () => { show(catModal); renderKeyList(); };
+    const closeCat = () => hide(catModal);
+
+    const renderKeyList = () => {
+      const wrap = $('#keyList');
+      wrap.innerHTML = state.keywords.map(k => `
+        <div class="prioTile" data-kid="${escapeHtml(k.id)}" draggable="true">
+          <div class="prioBar" style="background:${escapeHtml(k.color)}"></div>
+          <div class="prioMain">
+            <div class="prioTitle">${escapeHtml(k.name)}</div>
+            <div class="prioMeta"><span class="pill">기본 순서: ${kwIndex(k.id)+1}</span></div>
+          </div>
+          <div class="prioActions" style="gap:6px;">
+            <button class="btn small" data-act="rename">이름</button>
+            <button class="btn small" data-act="recolor">색</button>
+            <button class="btn small danger" data-act="del">삭제</button>
+          </div>
+        </div>
+      `).join('');
+
+      wrap.querySelectorAll('[data-act="rename"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const kid = btn.closest('.prioTile').dataset.kid;
+          const k = kwById(kid);
+          const next = prompt('키워드 이름', k?.name || '');
+          if(next === null) return;
+          if(!next.trim()) return;
+          k.name = next.trim();
+          saveState();
+          renderKeyList();
+        });
+      });
+
+      wrap.querySelectorAll('[data-act="recolor"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const kid = btn.closest('.prioTile').dataset.kid;
+          const k = kwById(kid);
+          const next = prompt('색상 HEX 예: #ff00aa', k?.color || '#5dd6ff');
+          if(next === null) return;
+          if(!/^#[0-9a-fA-F]{6}$/.test(next.trim())) return alert('HEX 형식(#rrggbb)만 지원');
+          k.color = next.trim();
+          saveState();
+          renderKeyList();
+        });
+      });
+
+      wrap.querySelectorAll('[data-act="del"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const kid = btn.closest('.prioTile').dataset.kid;
+          if(state.keywords.length <= 1) return alert('키워드는 최소 1개 필요');
+          if(!confirm('이 키워드를 삭제할까요? (해당 키워드의 할 일은 첫 키워드로 이동)')) return;
+
+          const fallback = state.keywords[0].id === kid ? state.keywords[1].id : state.keywords[0].id;
+          Object.values(state.tasks).forEach(t => { if(t.keywordId === kid) t.keywordId = fallback; });
+          state.keywords = state.keywords.filter(k => k.id !== kid);
+
+          saveState();
+          renderKeyList();
+        });
+      });
+
+      let dragKid = null;
+      wrap.querySelectorAll('.prioTile').forEach(el => {
+        el.addEventListener('dragstart', (e) => {
+          dragKid = el.dataset.kid;
+          e.dataTransfer.setData('text/kid', dragKid);
+          e.dataTransfer.effectAllowed = 'move';
+          el.classList.add('dragging');
+        });
+        el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragKid = null; });
+        el.addEventListener('dragover', (e) => e.preventDefault());
+        el.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const from = e.dataTransfer.getData('text/kid') || dragKid;
+          const to = el.dataset.kid;
+          if(!from || !to || from === to) return;
+
+          const ids = state.keywords.map(k => k.id).filter(x => x !== from);
+          const idx = ids.indexOf(to);
+          ids.splice(Math.max(0, idx), 0, from);
+          state.keywords = ids.map(id => kwById(id)).filter(Boolean);
+
+          saveState();
+          renderKeyList();
+        });
+      });
+    };
+
+    const addKeyword = () => {
+      const name = $('#kName').value.trim();
+      const color = $('#kColor').value;
+      if(!name) return;
+      const id = 'k_' + name.toLowerCase().replace(/\s+/g,'_') + '_' + Math.random().toString(16).slice(2,6);
+      state.keywords.push({id, name, color});
+      $('#kName').value = '';
+      toast('키워드 추가');
+      saveState();
+      renderKeyList();
+    };
+
+    const openSet = () => {
+      $('#cutoff').value = state.settings.cutoff || '02:00';
+      $('#splitInfo').value = state.ui.splitLeftW ? (state.ui.splitLeftW + 'px') : '—';
+      $('#cellH').value = String(state.settings.cellH || 150);
+      show(setModal);
+    };
+    const closeSet = () => hide(setModal);
+    const saveSet = () => {
+      state.settings.cutoff = $('#cutoff').value || '02:00';
+      const h = Number($('#cellH').value || 150);
+      state.settings.cellH = Math.max(120, Math.min(240, h));
+      applyCellH();
+      toast('설정 저장');
+      saveState();
+      closeSet();
+    };
+
+    const doExport = () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deskplanner-backup-${toISODate(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast('내보내기 완료');
+    };
+
+    const doImportFile = (file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try{
+          const imported = normalizeState(JSON.parse(reader.result));
+          if(!imported || !imported.tasks || !imported.keywords) throw new Error('invalid');
+
+          state = imported;
+          state.meta ||= {};
+          state.meta.lastSavedAt = new Date().toISOString();
+
+          localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(state));
+          toast('가져오기 완료');
+          if(state.ui.splitLeftW) applySplitW(state.ui.splitLeftW);
+          applyCellH();
+          setLastSavedChip();
+          render();
+        }catch(_){
+          alert('가져오기 실패: 올바른 JSON 백업이 아닙니다.');
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    const quickAdd = () => {
+      const title = $('#qaTitle').value.trim();
+      if(!title) return alert('제목을 입력하세요.');
+      const dueDate = $('#qaDueDate').value || toISODate(new Date());
+      const keywordId = $('#qaKeyword').value || state.keywords[0]?.id;
+
+      const id = uid();
+      state.tasks[id] = {
+        id, title, keywordId, dueDate,
+        dueTime: null, notes: '', must: 0,
+        alertOn: 0, alertLeadDays: 0,
+        createdAt: new Date().toISOString(),
+        doneAt: null,
+      };
+
+      $('#qaTitle').value = '';
+      toast('빠른 추가됨');
+      saveState();
+    };
+
+    const render = () => {
+      renderCalendar();
+      renderPriority();
+      const si = $('#splitInfo');
+      if(si) si.value = state.ui.splitLeftW ? (state.ui.splitLeftW + 'px') : '—';
+    };
+
+    $('#btnPrev').addEventListener('click', () => { state.ui.anchorOffsetWeeks -= 1; saveState(); });
+    $('#btnNext').addEventListener('click', () => { state.ui.anchorOffsetWeeks += 1; saveState(); });
+    $('#btnToday').addEventListener('click', () => { state.ui.anchorOffsetWeeks = 0; saveState(); });
+
+    $('#btnQuickAdd').addEventListener('click', quickAdd);
+    $('#qaTitle').addEventListener('keydown', (e) => { if(e.key === 'Enter') quickAdd(); });
+
+    $('#btnAdd').addEventListener('click', () => openTask(null));
+    $('#btnCloseTask').addEventListener('click', () => closeTask());
+    $('#btnCancel').addEventListener('click', () => closeTask());
+    $('#btnSave').addEventListener('click', () => upsertTask());
+    $('#btnDelete').addEventListener('click', () => deleteTask());
+    $('#btnMarkDone').addEventListener('click', () => markDone());
+    $('#btnRestore').addEventListener('click', () => restoreTask());
+    taskModal.addEventListener('click', (e) => { if(e.target === taskModal) closeTask(); });
+
+    $('#btnCategories').addEventListener('click', () => openCat());
+    $('#btnCloseCat').addEventListener('click', () => closeCat());
+    $('#btnCatDone').addEventListener('click', () => closeCat());
+    $('#btnAddKey').addEventListener('click', () => addKeyword());
+    catModal.addEventListener('click', (e) => { if(e.target === catModal) closeCat(); });
+
+    $('#btnSettings').addEventListener('click', () => openSet());
+    $('#btnCloseSet').addEventListener('click', () => closeSet());
+    $('#btnSetCancel').addEventListener('click', () => closeSet());
+    $('#btnSetSave').addEventListener('click', () => saveSet());
+    setModal.addEventListener('click', (e) => { if(e.target === setModal) closeSet(); });
+
+    $('#btnExport').addEventListener('click', () => doExport());
+    $('#fileImport').addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if(f) doImportFile(f);
+      e.target.value = '';
+    });
+
+    $('#filterKeyword').addEventListener('change', () => renderPriority());
+
+    $('#tabKeyword').addEventListener('click', () => {
+      state.ui.prioTab = 'keyword';
+      editMode = false;
+      toast('키워드 우선');
+      saveState();
+    });
+    $('#tabTime').addEventListener('click', () => {
+      state.ui.prioTab = 'time';
+      editMode = false;
+      toast('시간순');
+      saveState();
+    });
+
+    $('#btnEdit').addEventListener('click', () => {
+      if(state.ui.prioTab !== 'keyword') return;
+      editMode = !editMode;
+      toast(editMode ? '우선순위 수정 모드' : '수정 모드 종료');
+      renderPriority();
+    });
+
+    $('#btnSaveOrder').addEventListener('click', () => {
+      if(state.ui.prioTab !== 'keyword') return;
+      const filter = $('#filterKeyword').value || 'all';
+      if(filter !== 'all') return alert('저장은 “전체 키워드” 상태에서만 가능합니다. (필터 해제 후 저장)');
+      const ids = Array.from($('#prioStack').querySelectorAll('.prioTile')).map(x => x.dataset.id);
+      state.orderOverride = ids;
+      editMode = false;
+      toast('수동 우선순위 저장');
+      saveState();
+    });
+
+    $('#btnClearOverride').addEventListener('click', () => {
+      if(!confirm('수동으로 저장된 우선순위 순서를 초기화할까요?')) return;
+      state.orderOverride = [];
+      toast('수동 순서 초기화');
+      saveState();
+    });
+
+    $('#btnToggleDone').addEventListener('click', () => {
+      state.ui.doneCollapsed = !state.ui.doneCollapsed;
+      saveState();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if(e.key !== 'Escape') return;
+      if(taskModal.style.display === 'flex') return closeTask();
+      if(catModal.style.display === 'flex') return closeCat();
+      if(setModal.style.display === 'flex') return closeSet();
+      if(cloudModal.style.display === 'flex') return closeCloud();
+      if(loginModal.style.display === 'flex') return closeLogin();
+    });
+
+    
+    $('#btnClearDone')?.addEventListener('click', () => {
+      if(!confirm('완료 기록을 전부 삭제할까요?')) return;
+      Object.keys(state.tasks).forEach(id=>{
+        if(state.tasks[id].doneAt){
+          delete state.tasks[id];
+        }
+      });
+      saveState();
+      render();
+    });
+
+    
+    // --- Cloud/Auth (v10) ---
+    const updateAuthUI = () => {
+      const chip = $('#chipAuth');
+      const btnLogin = $('#btnLogin');
+      const btnLogout = $('#btnLogout');
+      if(!cloudReady){
+        chip.textContent = '로그인: 오프라인(클라우드 미설정)';
+        btnLogin.style.display = 'inline-block';
+        btnLogout.style.display = 'none';
+        return;
+      }
+      if(user){
+        chip.textContent = `로그인: ${user.email || (user.uid.slice(0,6)+'…')} · 실시간 ON`;
+        btnLogin.style.display = 'none';
+        btnLogout.style.display = 'inline-block';
+      }else{
+        chip.textContent = '로그인: 오프라인(실시간 OFF)';
+        btnLogin.style.display = 'inline-block';
+        btnLogout.style.display = 'none';
+      }
+    };
+
+    const openCloud = () => {
+      const cfg = loadCloudCfg();
+      $('#firebaseConfigBox').value = cfg ? JSON.stringify(cfg.firebaseConfig, null, 2) : '';
+      $('#cloudPath').value = cfg?.cloudPath ? cfg.cloudPath : 'planner/main';
+      show(cloudModal);
+    };
+    const closeCloud = () => hide(cloudModal);
+
+    const openLogin = () => {
+      if(!cloudReady){
+        alert('먼저 “클라우드 설정”에서 firebaseConfig를 저장하세요.');
+        return;
+      }
+      show(loginModal);
+    };
+    const closeLogin = () => hide(loginModal);
+
+    const attachCloudSnapshot = () => {
+      if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
+      const ref = cloudDocRef();
+      if(!ref) return;
+      cloudUnsub = onSnapshot(ref, (snap) => {
+        const data = snap.data();
+        if(!data?.state) return;
+        const cloudTs = Number(data.updatedAt || 0);
+        if(cloudTs <= lastCloudUpdatedAt) return;
+        lastCloudUpdatedAt = cloudTs;
+        state = normalizeState(data.state);
+        localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(state));
+        setLastSavedChip();
+        render();
+      }, (err) => {
+        console.warn('snapshot error', err);
+      });
+    };
+
+    initFirebaseIfPossible();
+    updateAuthUI();
+
+    if(cloudReady){
+      onAuthStateChanged(auth, async (u) => {
+        user = u || null;
+        updateAuthUI();
+        if(!user){
+          if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
+          return;
+        }
+
+        const ref = cloudDocRef();
+        try{
+          const snap = await getDoc(ref);
+          if(!snap.exists()){
+            const updatedAt = Date.now();
+            await setDoc(ref, { state, updatedAt }, { merge: true });
+            lastCloudUpdatedAt = updatedAt;
+          }else{
+            const data = snap.data();
+            const cloudTs = Number(data?.updatedAt || 0);
+            if(data?.state && cloudTs > lastCloudUpdatedAt){
+              lastCloudUpdatedAt = cloudTs;
+              state = normalizeState(data.state);
+              localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(state));
+              setLastSavedChip();
+              render();
+            }
+          }
+        }catch(err){
+          console.warn(err);
+        }
+
+        attachCloudSnapshot();
+      });
+    }
+
+    // bindings
+    $('#btnCloudSetup')?.addEventListener('click', openCloud);
+    $('#btnCloseCloud')?.addEventListener('click', closeCloud);
+    $('#btnCloudCancel')?.addEventListener('click', closeCloud);
+    $('#btnCloudOk')?.addEventListener('click', closeCloud);
+    cloudModal?.addEventListener('click', (e) => { if(e.target === cloudModal) closeCloud(); });
+
+    $('#btnSaveCloudCfg')?.addEventListener('click', () => {
+      const text = $('#firebaseConfigBox').value.trim();
+      if(!text) return alert('firebaseConfig JSON을 붙여넣으세요.');
+      let cfg;
+      try{ cfg = JSON.parse(text); }catch(_){ return alert('firebaseConfig JSON 파싱 실패'); }
+      if(!cfg.projectId) return alert('firebaseConfig에 projectId가 없습니다.');
+      const path = ($('#cloudPath').value || 'planner/main').trim();
+      if(!/^[a-zA-Z0-9_\-]+\/[a-zA-Z0-9_\-]+$/.test(path)){
+        return alert('문서 경로는 "collection/doc" 형태로 입력 (예: planner/main)');
+      }
+      saveCloudCfg({ firebaseConfig: cfg, cloudPath: path });
+      alert('저장 완료. 페이지를 새로고침(F5)한 뒤 로그인하세요.');
+    });
+
+    $('#btnLogin')?.addEventListener('click', openLogin);
+    $('#btnCloseLogin')?.addEventListener('click', closeLogin);
+    $('#btnLoginCancel')?.addEventListener('click', closeLogin);
+    loginModal?.addEventListener('click', (e) => { if(e.target === loginModal) closeLogin(); });
+
+    $('#btnGoogleLogin')?.addEventListener('click', async () => {
+      try{
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+        closeLogin();
+      }catch(err){
+        console.warn(err);
+        alert('로그인 실패: 팝업 차단/Authorized domains 설정을 확인하세요.');
+      }
+    });
+
+    $('#btnLogout')?.addEventListener('click', async () => {
+      try{ await signOut(auth); }catch(_){}
+    });
+
+    initSplitter();
+    applyCellH();
+    ensureKeywordSelects();
+    $('#qaDueDate').value = toISODate(new Date());
+    setLastSavedChip();
+    render();
+
+    // 알림 시작일 도달 시 자동 반영(1분마다)
+    setInterval(() => {
+      renderPriority();
+      renderCalendar();
+    }, 60 * 1000);
+  })();
+  </script>
+</body>
+</html>
